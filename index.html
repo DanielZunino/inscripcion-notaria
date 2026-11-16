@@ -102,7 +102,7 @@ const PUESTO = {   // pregunta de labor o tipo de puesto (Grupo San Ignacio): de
   agricola: { e: 1553391800, t: '¿Qué labores hace?', h: 'Marque todas las labores que haga.', ops: ['Huerto', 'Cosecha cerezas', 'Cosecha kiwis', 'Vivero', 'Riego', 'Tractorista', 'Aplicador', 'Administración'], multi: true },
   inversiones: { e: 1696892171, t: '¿Qué tipo de trabajo hace?', h: 'Toque la opción que corresponda a su trabajo.', ops: ['Guardia de seguridad', 'Administrativo', 'Contabilidad', 'Gerencia', 'Otro'] },
 };
-const PU = EMP && !EMP.cfg ? PUESTO[clave] : null;
+const PU = null;   // la pregunta de labor se sacó de la inscripción (la ficha PDF deja el espacio en blanco)
 const OP = k => (CFG.ops && CFG.ops[k]) || O[k];
 const cargoTxt = () => (A.cargoL || A._cargo || '').trim();
 const PROV = {}; Object.keys(PROVS).forEach(p => PROVS[p].forEach(c => { PROV[c] = p; }));

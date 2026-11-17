@@ -145,7 +145,7 @@ const S = [
  { id:'tipoTrab', sec:2, t:'¿Usted es personal de planta o de temporada?', h:'Planta: trabaja todo el año. Temporada: solo durante la temporada.', tipo:'bot', ops:() => CFG.tipoTrab, cols:1, si: () => !!CFG.tipoTrab },
  { id:'emp', sec:2, t:'¿En qué empresa trabaja?', h: CFG.empVarias ? 'Generalmente es una. Si trabaja para más de una (por ejemplo, boletea a dos), márquelas todas.' : 'Toque su empresa.', tipo:'multi', ops:() => CFG.emp, uno: () => !CFG.empVarias, si: () => !!CFG.emp },
  { id:'inst', sec:2, t: CFG.instQ || CFG.instTit || (CFG.instUno ? '¿En qué sucursal trabaja?' : '¿Dónde trabaja?'), h: CFG.instH ? CFG.instH : CFG.instTit ? 'Generalmente es una. Si trabaja en más de una, márquelas todas.' : CFG.instUno ? 'Toque su sucursal.' : 'Si trabaja en más de un lugar, márquelos todos.', tipo:'multi', ops:() => EMP.inst, uno: () => !!CFG.instUno },
- { id:'ingreso', sec:2, t:'¿Cuándo entró a trabajar a la empresa?', h:'Si no se acuerda, toque "No me acuerdo".', tipo:'fecha', opcional:'No me acuerdo' },
+ { id:'ingreso', sec:2, t:'¿Cuándo entró (o va a entrar) a trabajar a la empresa?', h:'Si todavía no empieza, ponga el día en que va a ingresar. Si no se acuerda, toque "No me acuerdo".', tipo:'fecha', posterior:true, opcional:'No me acuerdo' },
  { id:'cargo', sec:2, t:'¿Cuál es su cargo?', h: CFG.cargoH || 'Ej: Operario de planta, Temporero, Administrativo', tipo:'texto', ph:'Su cargo',
    ok: v => v.trim().length >= 3 && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(v), err: () => 'Escriba su cargo con palabras', fmt: v => v.replace(/\s+/g, ' ').trim(), si: () => !CFG.cargos },
  { id:'cargoL', sec:2, t:'¿Cuál es su cargo?', h:'Toque su cargo. Si no aparece, toque el más parecido.', tipo:'bot', ops:() => CFG.cargos, cols:1, si: () => !!CFG.cargos },
@@ -427,6 +427,7 @@ const VALIDA = {
   fecha3: () => { if (!(A.dia && A.mes && A.anio)) return [false, '']; const d = new Date(A.anio, A.mes - 1, A.dia); return d.getDate() == A.dia ? [true, '✅ Bien'] : [false, '❌ Esa fecha no existe. Revise el día']; },
   fecha: s => { const v = A[s.id]; if (!v) return [false, '']; if (v === '-') return [true, '']; const y = Number(v.slice(0, 4)); const hoy = new Date().toISOString().slice(0, 10);
     if (s.futura) return y > 2100 || y < 2000 ? [false, '❌ Revise el año'] : [true, v < hoy ? (s.id === 'vencCI' ? '⚠️ Su carnet está vencido' : '⚠️ Su licencia está vencida') : '✅ Bien', v < hoy ? 'info' : 'ok'];
+    if (s.posterior && v > hoy) { const tope = new Date(Date.now() + 366 * 864e5).toISOString().slice(0, 10); return v > tope ? [false, '❌ Revise la fecha: es muy adelante'] : [true, '✅ Bien: ingresa el ' + v.split('-').reverse().join('-')]; }   // fecha de ingreso puede ser posterior (hasta 1 año)
     return v > hoy || y < 1960 ? [false, '❌ Revise la fecha'] : [true, '✅ Bien']; },
   nacion: () => A.nacio ? [true, '✅ ' + A.nacio] : [false, ''],
   region: () => A.region ? [true, ''] : [false, ''],

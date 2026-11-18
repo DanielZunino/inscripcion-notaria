@@ -580,7 +580,7 @@ function armarCfg() {
   const val = (k, v) => (CFG.val && CFG.val[k] && CFG.val[k][v]) || v;
   const fx = id => S.find(x => x.id === id).fmt(A['_' + id] || '');
   put('tipoTrab', A.tipoTrab);
-  put('nombre', nomNomina()); put('rut', fmtRut(limpioRut(A.rut)));
+  put('nombre', nomCompleto()); put('rut', fmtRut(limpioRut(A.rut)));   // otras empresas: sus generadores aun esperan "Nombres Apellidos" (se cambian una por una)
   fecha('nacF', A.anio + '-' + String(A.mes).padStart(2, '0') + '-' + String(A.dia).padStart(2, '0'));
   if (CFG.nacOp) { if (CFG.nacOp[A.nacio]) put('nac', CFG.nacOp[A.nacio]); else if (e.nac && A.nacio) { p.append('entry.' + e.nac, '__other_option__'); p.append('entry.' + e.nac + '.other_option_response', A.nacio); usadas.add('nac'); } } else put('nac', A.nacio); put('genero', A.genero); put('civil', A.civil); put('estudios', A.estudios);
   [].concat(A.emp || []).forEach(x => put('emp', val('emp', x)));
@@ -615,7 +615,7 @@ async function enviar() {
   let p; if (EMP.cfg) p = armarCfg(); else {
   const e = EMP.e; p = new URLSearchParams(); const put = (k, v) => p.append('entry.' + e[k], v);
   const ri = O.regiones.indexOf(A.region);
-  put('nombre', nomNomina()); put('rut', fmtRut(limpioRut(A.rut)));
+  put('nombre', ['lacteos', 'agroex', 'inversiones', 'agricola'].includes(clave) ? nomNomina() : nomCompleto()); put('rut', fmtRut(limpioRut(A.rut)));   // Grupo San Ignacio: nomina "Apellidos Nombres"
   put('dia', String(A.dia)); put('mes', String(A.mes).padStart(2, '0') + ' - ' + MESES[A.mes - 1]); put('anio', String(A.anio));
   put('nac', A.nacio); put('genero', A.genero); put('civil', A.civil);
   A.inst.forEach(x => put('inst', x));

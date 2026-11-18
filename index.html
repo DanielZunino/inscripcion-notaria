@@ -109,6 +109,8 @@ const PROV = {}; Object.keys(PROVS).forEach(p => PROVS[p].forEach(c => { PROV[c]
 let A = {}, pos = 0, FOTOS = {};
 const FT = s => FOTOS[s.doc || 'licencia'] || (FOTOS[s.doc || 'licencia'] = { F: null, R: null, ok: false });
 try { A = JSON.parse(localStorage.getItem(GUARDA) || '{}'); } catch (e) { A = {}; }
+if (A._nombre && !('_apellidos' in A)) { delete A._nombre; A._apellidos = ''; }   // inscripciones a medias del formato antiguo (nombre completo): vuelve a pedir nombres y apellidos por separado
+['ingreso', 'vencCI', 'venc'].forEach(k => { if (A[k] === 'inv') A[k] = ''; });
 const guardar = () => { try { localStorage.setItem(GUARDA, JSON.stringify(A)); } catch (e) {} };
 
 // ---------- utilidades ----------
@@ -132,8 +134,10 @@ const telFmt = d => d.slice(0, 4) + ' ' + d.slice(4, 8);
 const S = [
  // 1 datos personales
  { id:'rut', sec:1, t:'Escriba su RUT', h:'Escriba solo los números. Los puntos y el guion se ponen solos.', tipo:'rut' },
- { id:'nombre', sec:1, t:'¿Cuál es su nombre completo?', h:'Todos sus nombres y sus dos apellidos. Ej: Juan Andrés Pérez Soto', tipo:'texto', ph:'Nombres y apellidos',
-   ok: v => RX2.test(v) && v.trim().split(/\s+/).every(p => p.length > 1), err: v => /\d/.test(v) ? '❌ Escriba solo letras, sin números' : 'Escriba su nombre y sus dos apellidos', fmt: v => tit(v.replace(/\s+/g, ' ').trim()) },
+ { id:'nombre', sec:1, t:'Escriba sus nombres', h:'Solo sus nombres, sin los apellidos. Ej: Juan Andrés', tipo:'texto', ph:'Sus nombres',
+   ok: v => RX1.test(v) && v.trim().split(/\s+/).every(p => p.length > 1), err: v => /\d/.test(v) ? '❌ Escriba solo letras, sin números' : 'Escriba sus nombres', fmt: v => tit(v.replace(/\s+/g, ' ').trim()) },
+ { id:'apellidos', sec:1, t:'Escriba sus apellidos', h:'Sus dos apellidos: primero el del papá y después el de la mamá. Ej: Pérez Soto', tipo:'texto', ph:'Sus apellidos',
+   ok: v => RX1.test(v) && v.trim().split(/\s+/).every(p => p.length > 1), err: v => /\d/.test(v) ? '❌ Escriba solo letras, sin números' : 'Escriba sus apellidos', fmt: v => tit(v.replace(/\s+/g, ' ').trim()) },
  { id:'nac', sec:1, t:'¿Cuándo nació?', h:'Elija el día, el mes y el año en que nació.', tipo:'fecha3' },
  { id:'nacio', sec:1, t:'¿Cuál es su nacionalidad?', h:'Toque una opción.', tipo:'nacion' },
  { id:'genero', sec:1, t:'¿Cuál es su género?', tipo:'bot', ops:() => O.genero, cols:2 },
@@ -288,11 +292,21 @@ const CAMPOS = {
       '<div><label>Año</label><select id="a">' + opt(ANIOS.map(x=>[x,x]), A.anio, 'Año') + '</select></div></div>';
     ['d','m','a'].forEach(k => $(k).onchange = () => { A.dia = $('d').value; A.mes = $('m').value; A.anio = $('a').value; revisar(s); });
   },
-  fecha(s, c) {
-    c.innerHTML = '<input type="date" id="in">' + (s.opcional ? '<button class="alt" id="nose">' + s.opcional + '</button>' : '');
-    const i = $('in'); i.value = A[s.id] && A[s.id] !== '-' ? A[s.id] : '';
-    i.onchange = i.oninput = () => { A[s.id] = i.value; revisar(s); };
-    if (s.opcional) $('nose').onclick = () => { A[s.id] = '-'; i.value = ''; avanzar(s); };
+  fecha(s, c) {   // día, mes y año por separado (más fácil que el calendario)
+    const cur = new Date().getFullYear(), v = A[s.id] && /^\d{4}-/.test(A[s.id]) ? A[s.id].split('-') : [];
+    const P = A['_f' + s.id] = A['_f' + s.id] || { d: v[2] ? String(Number(v[2])) : '', m: v[1] ? String(Number(v[1])) : '', a: v[0] || '' };
+    const anios = s.futura ? Array.from({ length: 21 }, (_, i) => cur - 5 + i) : Array.from({ length: cur + 2 - 1960 }, (_, i) => cur + 1 - i).filter(y => s.posterior || y <= cur);
+    const opt = (l, val, ph) => '<option value="">' + ph + '</option>' + l.map(x => '<option' + (String(x[0]) === String(val) ? ' selected' : '') + ' value="' + x[0] + '">' + x[1] + '</option>').join('');
+    c.innerHTML = '<div class="tres"><div><label>Día</label><select id="fd">' + opt(Array.from({ length: 31 }, (_, i) => [i + 1, i + 1]), P.d, 'Día') + '</select></div>' +
+      '<div><label>Mes</label><select id="fm">' + opt(MESES.map((x, i) => [i + 1, x]), P.m, 'Mes') + '</select></div>' +
+      '<div><label>Año</label><select id="fa">' + opt(anios.map(x => [x, x]), P.a, 'Año') + '</select></div></div>' +
+      (s.opcional ? '<button class="alt" id="nose">' + s.opcional + '</button>' : '');
+    ['fd', 'fm', 'fa'].forEach(k => $(k).onchange = () => {
+      P.d = $('fd').value; P.m = $('fm').value; P.a = $('fa').value;
+      if (P.d && P.m && P.a) { const f = new Date(Number(P.a), Number(P.m) - 1, Number(P.d)); A[s.id] = f.getDate() == P.d ? P.a + '-' + String(P.m).padStart(2, '0') + '-' + String(P.d).padStart(2, '0') : 'inv'; }
+      else A[s.id] = '';
+      revisar(s); });
+    if (s.opcional) $('nose').onclick = () => { A[s.id] = '-'; A['_f' + s.id] = null; avanzar(s); };
   },
   nacion(s, c) {
     const top = O.nac.slice(0, 7), resto = O.nac.slice(8).filter(x => x !== 'Otra');
@@ -414,10 +428,13 @@ function mostrar(x) {
     case 'venc': return fechaTxt(A.venc);
     case 'vencCI': return A.vencCI === '-' ? 'No sabe' : fechaTxt(A.vencCI);
     case 'tel': case 'emTel': return '+56 9 ' + (A['_' + x.id] || '');
-    case 'nombre': case 'cargo': case 'ciudad': case 'dir': case 'emNombre': case 'cuenta': case 'discCual': case 'trabAnt': return x.fmt(A['_' + x.id] || '');
+    case 'nombre': case 'apellidos': case 'cargo': case 'ciudad': case 'dir': case 'emNombre': case 'cuenta': case 'discCual': case 'trabAnt': return x.fmt(A['_' + x.id] || '');
     default: return A[x.id];
   }
 }
+const nomPila = () => S.find(x => x.id === 'nombre').fmt(A._nombre || ''), apell = () => S.find(x => x.id === 'apellidos').fmt(A._apellidos || '');
+const nomCompleto = () => (nomPila() + ' ' + apell()).trim();      // Juan Andrés Pérez Soto (diplomas, fotos)
+const nomNomina = () => (apell() + ' ' + nomPila()).trim();        // Pérez Soto Juan Andrés (nómina)
 const fechaTxt = v => { if (!v) return ''; const [y, m, d] = v.split('-'); return Number(d) + ' de ' + MESES[Number(m) - 1] + ' de ' + y; };
 
 const VALIDA = {
@@ -425,7 +442,7 @@ const VALIDA = {
   texto: s => { const v = A['_' + s.id] || ''; if (!v.trim()) return [false, '']; return s.ok(v) ? [true, '✅ Bien'] : [false, s.err(v), /\d/.test(v) || s.num ? 'mal' : 'info']; },
   multi: s => [].concat(A[s.id] || []).length ? [true, '✅ Bien'] : [false, s.id === 'clase' ? 'Marque al menos una clase' : s.id === 'inst' ? 'Marque al menos un lugar' : 'Marque al menos una opción', 'info'],
   fecha3: () => { if (!(A.dia && A.mes && A.anio)) return [false, '']; const d = new Date(A.anio, A.mes - 1, A.dia); return d.getDate() == A.dia ? [true, '✅ Bien'] : [false, '❌ Esa fecha no existe. Revise el día']; },
-  fecha: s => { const v = A[s.id]; if (!v) return [false, '']; if (v === '-') return [true, '']; const y = Number(v.slice(0, 4)); const hoy = new Date().toISOString().slice(0, 10);
+  fecha: s => { const v = A[s.id]; if (!v) return [false, '']; if (v === '-') return [true, '']; if (v === 'inv') return [false, '❌ Esa fecha no existe. Revise el día']; const y = Number(v.slice(0, 4)); const hoy = new Date().toISOString().slice(0, 10);
     if (s.futura) return y > 2100 || y < 2000 ? [false, '❌ Revise el año'] : [true, v < hoy ? (s.id === 'vencCI' ? '⚠️ Su carnet está vencido' : '⚠️ Su licencia está vencida') : '✅ Bien', v < hoy ? 'info' : 'ok'];
     if (s.posterior && v > hoy) { const tope = new Date(Date.now() + 366 * 864e5).toISOString().slice(0, 10); return v > tope ? [false, '❌ Revise la fecha: es muy adelante'] : [true, '✅ Bien: ingresa el ' + v.split('-').reverse().join('-')]; }   // fecha de ingreso puede ser posterior (hasta 1 año)
     return v > hoy || y < 1960 ? [false, '❌ Revise la fecha'] : [true, '✅ Bien']; },
@@ -548,7 +565,7 @@ async function subirFotos(s) {
   marcar(false, '⏳ Subiendo fotos, espere un momento...', 'info');
   try {
     for (const [l, lado] of [['F', 'Frente'], ['R', 'Reverso']]) {
-      const r = await fetch(SUBIDA, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ empresa: clave, rut: fmtRut(limpioRut(A.rut)), nombre: S[1].fmt(A._nombre || ''), lado, doc: s.doc || 'licencia', data: ft[l].split(',')[1] }) });
+      const r = await fetch(SUBIDA, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ empresa: clave, rut: fmtRut(limpioRut(A.rut)), nombre: nomCompleto(), lado, doc: s.doc || 'licencia', data: ft[l].split(',')[1] }) });
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
     }
     ft.ok = true; return true;
@@ -563,7 +580,7 @@ function armarCfg() {
   const val = (k, v) => (CFG.val && CFG.val[k] && CFG.val[k][v]) || v;
   const fx = id => S.find(x => x.id === id).fmt(A['_' + id] || '');
   put('tipoTrab', A.tipoTrab);
-  put('nombre', fx('nombre')); put('rut', fmtRut(limpioRut(A.rut)));
+  put('nombre', nomNomina()); put('rut', fmtRut(limpioRut(A.rut)));
   fecha('nacF', A.anio + '-' + String(A.mes).padStart(2, '0') + '-' + String(A.dia).padStart(2, '0'));
   if (CFG.nacOp) { if (CFG.nacOp[A.nacio]) put('nac', CFG.nacOp[A.nacio]); else if (e.nac && A.nacio) { p.append('entry.' + e.nac, '__other_option__'); p.append('entry.' + e.nac + '.other_option_response', A.nacio); usadas.add('nac'); } } else put('nac', A.nacio); put('genero', A.genero); put('civil', A.civil); put('estudios', A.estudios);
   [].concat(A.emp || []).forEach(x => put('emp', val('emp', x)));
@@ -598,7 +615,7 @@ async function enviar() {
   let p; if (EMP.cfg) p = armarCfg(); else {
   const e = EMP.e; p = new URLSearchParams(); const put = (k, v) => p.append('entry.' + e[k], v);
   const ri = O.regiones.indexOf(A.region);
-  put('nombre', S[1].fmt(A._nombre)); put('rut', fmtRut(limpioRut(A.rut)));
+  put('nombre', nomNomina()); put('rut', fmtRut(limpioRut(A.rut)));
   put('dia', String(A.dia)); put('mes', String(A.mes).padStart(2, '0') + ' - ' + MESES[A.mes - 1]); put('anio', String(A.anio));
   put('nac', A.nacio); put('genero', A.genero); put('civil', A.civil);
   A.inst.forEach(x => put('inst', x));
@@ -626,9 +643,9 @@ async function enviar() {
   try {
     await fetch('https://docs.google.com/forms/d/e/' + EMP.form + '/formResponse', { method: 'POST', mode: 'no-cors', body: p });
     try { localStorage.removeItem(GUARDA); } catch (x) {}
-    try { fetch(SUBIDA, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ accion: 'registro', empresa: clave, rut: fmtRut(limpioRut(A.rut)), nombre: S[1].fmt(A._nombre || ''), vencCI: A.vencCI && A.vencCI !== '-' ? A.vencCI : '', estados: { licencia: A.lic || 'NO APLICA', aplicador: A.plag || 'NO APLICA' } }) }).catch(() => {}); } catch (x) {}
+    try { fetch(SUBIDA, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ accion: 'registro', empresa: clave, rut: fmtRut(limpioRut(A.rut)), nombre: nomCompleto(), vencCI: A.vencCI && A.vencCI !== '-' ? A.vencCI : '', estados: { licencia: A.lic || 'NO APLICA', aplicador: A.plag || 'NO APLICA' } }) }).catch(() => {}); } catch (x) {}
     $('secT').textContent = 'Inscripción enviada'; $('barra').style.width = '100%';
-    app.innerHTML = '<div class="fin"><div class="ic">✅</div><h2>¡Listo! Su inscripción fue enviada</h2><p class="ayuda" style="font-size:18px">Muchas gracias, ' + S[1].fmt(A._nombre).split(' ')[0] + '. Ya puede cerrar esta página.</p></div>';
+    app.innerHTML = '<div class="fin"><div class="ic">✅</div><h2>¡Listo! Su inscripción fue enviada</h2><p class="ayuda" style="font-size:18px">Muchas gracias, ' + nomPila().split(' ')[0] + '. Ya puede cerrar esta página.</p></div>';
     hablar('Listo. Su inscripción fue enviada. Muchas gracias.');
   } catch (x) { marcar(true, '❌ No se pudo enviar. Revise su internet y toque "Enviar" de nuevo'); }
 }
